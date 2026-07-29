@@ -1,0 +1,6 @@
+@Sofistike.Api_HostAddress = http://localhost:5118
+
+GET {{Sofistike.Api_HostAddress}}/api/v1/system/health
+Accept: application/json
+
+###

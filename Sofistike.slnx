@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Sofistike.Api/Sofistike.Api.csproj" />
+    <Project Path="src/Sofistike.Application/Sofistike.Application.csproj" />
+    <Project Path="src/Sofistike.Domain/Sofistike.Domain.csproj" />
+    <Project Path="src/Sofistike.Infrastructure/Sofistike.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Sofistike.IntegrationTests/Sofistike.IntegrationTests.csproj" />
+    <Project Path="tests/Sofistike.UnitTests/Sofistike.UnitTests.csproj" />
+  </Folder>
+</Solution>
