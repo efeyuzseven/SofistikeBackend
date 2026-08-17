@@ -20,3 +20,5 @@ appsettings.Local.json
 ## OS
 .DS_Store
 Thumbs.db
+# Local data-protection keys
+.keys/

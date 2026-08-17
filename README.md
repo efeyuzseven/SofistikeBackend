@@ -26,6 +26,25 @@ API varsayılan olarak `http://localhost:5118` adresinde çalışır.
 GET /api/v1/system/health
 ```
 
+### Yerel giriş hesabı
+
+Geliştirme ortamındaki geçici giriş hesabı:
+
+- E-posta: `umay@sofistike.com`
+- Şifre: `Umay123!`
+
+Kimlik doğrulama uçları:
+
+```http
+POST /api/v1/auth/login
+GET  /api/v1/auth/me
+POST /api/v1/auth/logout
+```
+
+Bu hesap yalnızca yerel arayüz ve entegrasyon geliştirmesi içindir. Üretimde kullanıcı
+bilgileri ortam değişkenleri veya secret yönetimiyle sağlanmalı; kalıcı kullanıcı
+veritabanı devreye alındığında geçici doğrulayıcı kaldırılmalıdır.
+
 ## Komutlar
 
 ```bash
