@@ -1,7 +1,17 @@
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.EntityFrameworkCore;
 using Sofistike.Api.Authentication;
 using Sofistike.Application.Authentication;
+using Sofistike.Application.Catalog;
+using Sofistike.Application.Favorites;
+using Sofistike.Application.Sales;
+using Sofistike.Application.Users;
 using Sofistike.Infrastructure.Authentication;
+using Sofistike.Infrastructure.Catalog;
+using Sofistike.Infrastructure.Favorites;
+using Sofistike.Infrastructure.Persistence;
+using Sofistike.Infrastructure.Sales;
+using Sofistike.Infrastructure.Users;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -9,25 +19,31 @@ builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 builder.Logging.AddDebug();
 
+var databaseConnectionString = builder.Configuration.GetConnectionString(
+    "SofistikeDatabase"
+) ?? throw new InvalidOperationException(
+    "Connection string 'SofistikeDatabase' is missing."
+);
+
 builder.Services.AddControllers();
 builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi();
+builder.Services.AddDbContext<SofistikeDbContext>(options =>
+    options.UseSqlServer(databaseConnectionString)
+);
 builder.Services
     .AddDataProtection()
     .PersistKeysToFileSystem(
         new DirectoryInfo(Path.Combine(builder.Environment.ContentRootPath, ".keys"))
     );
 
-var developmentUser = builder.Configuration
-    .GetRequiredSection("Authentication:DevelopmentUser")
-    .Get<DevelopmentUserOptions>()
-    ?? throw new InvalidOperationException(
-        "Authentication development user configuration is missing."
-    );
-
-builder.Services.AddSingleton<ICredentialValidator>(
-    new DevelopmentCredentialValidator(developmentUser)
-);
+builder.Services.AddScoped<ICredentialValidator, DatabaseCredentialValidator>();
+builder.Services.AddScoped<IUserRegistrationService, UserRegistrationService>();
+builder.Services.AddScoped<IUserProfileService, UserProfileService>();
+builder.Services.AddScoped<IProductCatalogService, ProductCatalogService>();
+builder.Services.AddScoped<IFavoriteService, FavoriteService>();
+builder.Services.AddScoped<ICartService, CartService>();
+builder.Services.AddScoped<IOrderService, OrderService>();
 builder.Services.AddSingleton<ISessionTicketService, SessionTicketService>();
 
 const string frontendCorsPolicy = "Frontend";
@@ -47,6 +63,17 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+if (
+    app.Environment.IsDevelopment()
+    && app.Configuration.GetValue<bool>("Catalog:SeedDevelopmentData")
+)
+{
+    await using var scope = app.Services.CreateAsyncScope();
+    var dbContext = scope.ServiceProvider.GetRequiredService<SofistikeDbContext>();
+    await dbContext.Database.MigrateAsync();
+    await DevelopmentCatalogSeeder.SeedAsync(dbContext);
+}
 
 app.UseExceptionHandler();
 

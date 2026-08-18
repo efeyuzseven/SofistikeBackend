@@ -15,5 +15,8 @@ public sealed record AuthenticatedUser(
 
 public interface ICredentialValidator
 {
-    AuthenticatedUser? Validate(LoginCommand command);
+    Task<AuthenticatedUser?> ValidateAsync(
+        LoginCommand command,
+        CancellationToken cancellationToken = default
+    );
 }

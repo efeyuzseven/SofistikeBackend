@@ -8,6 +8,8 @@ geliştirilecektir.
 
 - .NET 10 Web API
 - Controller tabanlı HTTP API
+- Entity Framework Core 10
+- SQL Server
 - OpenAPI
 - xUnit
 
@@ -22,13 +24,22 @@ dotnet run --project src/Sofistike.Api
 
 API varsayılan olarak `http://localhost:5118` adresinde çalışır.
 
+Yerel veritabanı bağlantısı Windows kimlik doğrulamasıyla `SofistikeDb`
+veritabanını kullanır. İlk kurulumda migration'ları uygulayın:
+
+```bash
+dotnet ef database update \
+  --project src/Sofistike.Infrastructure \
+  --startup-project src/Sofistike.Api
+```
+
 ```http
 GET /api/v1/system/health
 ```
 
 ### Yerel giriş hesabı
 
-Geliştirme ortamındaki geçici giriş hesabı:
+Geliştirme veritabanına ilk migration ile eklenen giriş hesabı:
 
 - E-posta: `umay@sofistike.com`
 - Şifre: `Umay123!`
@@ -37,13 +48,38 @@ Kimlik doğrulama uçları:
 
 ```http
 POST /api/v1/auth/login
+POST /api/v1/auth/register
 GET  /api/v1/auth/me
 POST /api/v1/auth/logout
+GET  /api/v1/account/profile
+PUT  /api/v1/account/profile
+GET  /api/v1/account/favorites
+POST /api/v1/account/favorites/{productId}
+DELETE /api/v1/account/favorites/{productId}
+GET  /api/v1/account/cart
+POST /api/v1/account/cart/items
+PATCH /api/v1/account/cart/items/{productId}
+DELETE /api/v1/account/cart/items/{productId}
+POST /api/v1/account/orders
 ```
 
-Bu hesap yalnızca yerel arayüz ve entegrasyon geliştirmesi içindir. Üretimde kullanıcı
-bilgileri ortam değişkenleri veya secret yönetimiyle sağlanmalı; kalıcı kullanıcı
-veritabanı devreye alındığında geçici doğrulayıcı kaldırılmalıdır.
+Katalog uçları:
+
+```http
+GET /api/v1/categories
+GET /api/v1/products
+GET /api/v1/products/{slug}
+```
+
+Ürün listesi `category`, `search`, `isPopular`, `isXtra`, `inStock`,
+`minPrice`, `maxPrice`, `sort`, `page` ve `pageSize` sorgu parametrelerini
+destekler. Geliştirme ortamında migration uygulandıktan sonra, katalog boşsa
+örnek ürünler otomatik olarak eklenir. Bu geliştirme verileri canlı ortamda
+oluşturulmaz.
+
+Bu hesap yalnızca yerel arayüz ve entegrasyon geliştirmesi içindir. Üretimde
+geliştirme hesabı seed edilmemeli ve kullanıcı parolaları uygulamanın üretim
+kimlik yönetimi politikalarına göre oluşturulmalıdır.
 
 ## Komutlar
 
@@ -80,10 +116,13 @@ Infrastructure katmanında tutulmalıdır.
 
 ## Başlangıç kapsamı
 
-Şimdilik yalnızca proje/katman yapısı, hata yanıtı altyapısı, CORS, OpenAPI,
-health endpoint'i, örnek testler ve CI hazırlanmıştır. Ürün, sipariş, sepet,
-stok, kampanya, müşteri, B2B ve entegrasyon modelleri bilinçli olarak
-eklenmemiştir.
+Şu anda kimlik doğrulama, kullanıcı profili, kullanıcı favorileri, kalıcı sepet,
+sipariş oluşturma ve public ürün kataloğu hazırlanmıştır. Katalog; kategori,
+ürün, varyant, görsel, fiyat, kampanyalı fiyat, depo ve stok modellerini içerir.
+Siparişler ödeme sağlayıcısı bağlanana kadar `AwaitingPayment` / `Pending`
+durumuyla oluşturulur. Ham kart numarası ve CVV API'ye alınmaz veya saklanmaz.
+Yönetim API'leri, B2B ve pazaryeri entegrasyonları sonraki geliştirme
+aşamalarına bırakılmıştır.
 
 ## Git akışı
 

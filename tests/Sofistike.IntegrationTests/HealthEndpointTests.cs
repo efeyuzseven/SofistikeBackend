@@ -15,6 +15,7 @@ public sealed class HealthEndpointTests
             .WithWebHostBuilder(builder =>
             {
                 builder.UseEnvironment("Development");
+                builder.UseSetting("Catalog:SeedDevelopmentData", "false");
                 builder.ConfigureLogging(logging => logging.ClearProviders());
             });
         using var client = application.CreateClient();
