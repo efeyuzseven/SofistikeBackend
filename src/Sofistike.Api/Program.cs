@@ -4,12 +4,14 @@ using Sofistike.Api.Authentication;
 using Sofistike.Application.Authentication;
 using Sofistike.Application.Catalog;
 using Sofistike.Application.Favorites;
+using Sofistike.Application.Reviews;
 using Sofistike.Application.Sales;
 using Sofistike.Application.Users;
 using Sofistike.Infrastructure.Authentication;
 using Sofistike.Infrastructure.Catalog;
 using Sofistike.Infrastructure.Favorites;
 using Sofistike.Infrastructure.Persistence;
+using Sofistike.Infrastructure.Reviews;
 using Sofistike.Infrastructure.Sales;
 using Sofistike.Infrastructure.Users;
 
@@ -41,7 +43,9 @@ builder.Services.AddScoped<ICredentialValidator, DatabaseCredentialValidator>();
 builder.Services.AddScoped<IUserRegistrationService, UserRegistrationService>();
 builder.Services.AddScoped<IUserProfileService, UserProfileService>();
 builder.Services.AddScoped<IProductCatalogService, ProductCatalogService>();
+builder.Services.AddScoped<IProductManagementService, ProductManagementService>();
 builder.Services.AddScoped<IFavoriteService, FavoriteService>();
+builder.Services.AddScoped<IReviewService, ReviewService>();
 builder.Services.AddScoped<ICartService, CartService>();
 builder.Services.AddScoped<IOrderService, OrderService>();
 builder.Services.AddSingleton<ISessionTicketService, SessionTicketService>();
@@ -72,6 +76,7 @@ if (
     await using var scope = app.Services.CreateAsyncScope();
     var dbContext = scope.ServiceProvider.GetRequiredService<SofistikeDbContext>();
     await dbContext.Database.MigrateAsync();
+    await DevelopmentIdentitySeeder.SeedAsync(dbContext);
     await DevelopmentCatalogSeeder.SeedAsync(dbContext);
 }
 

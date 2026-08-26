@@ -188,6 +188,12 @@ public sealed class AuthController(
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public IActionResult Logout()
     {
+        var token = ReadBearerToken();
+        if (!string.IsNullOrWhiteSpace(token))
+        {
+            sessionTicketService.Revoke(token);
+        }
+
         return NoContent();
     }
 

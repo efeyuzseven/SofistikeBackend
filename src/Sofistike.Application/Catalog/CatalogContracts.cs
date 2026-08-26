@@ -123,3 +123,86 @@ public interface IProductCatalogService
         CancellationToken cancellationToken = default
     );
 }
+
+public sealed record CreateProductCommand(
+    string ProductCode,
+    string Name,
+    string Slug,
+    string ShortDescription,
+    string Description,
+    Guid CategoryId,
+    decimal Price,
+    int StockQuantity,
+    string? ImageUrl,
+    bool IsPopular,
+    bool IsXtra
+);
+
+public enum CreateProductStatus
+{
+    Created,
+    CategoryNotFound,
+    DuplicateProductCode,
+    DuplicateSlug,
+}
+
+public sealed record CreateProductResult(
+    CreateProductStatus Status,
+    ProductDetails? Product
+);
+
+public sealed record UpdateProductCommand(
+    string ProductCode,
+    string Name,
+    string Slug,
+    string ShortDescription,
+    string Description,
+    Guid CategoryId,
+    decimal Price,
+    int StockQuantity,
+    string? ImageUrl,
+    bool IsPopular,
+    bool IsXtra
+);
+
+public enum UpdateProductStatus
+{
+    Updated,
+    NotFound,
+    CategoryNotFound,
+    DefaultVariantNotFound,
+    DuplicateProductCode,
+    DuplicateSlug,
+    ConcurrencyConflict,
+}
+
+public sealed record UpdateProductResult(
+    UpdateProductStatus Status,
+    ProductDetails? Product
+);
+
+public enum ArchiveProductStatus
+{
+    Archived,
+    NotFound,
+    ConcurrencyConflict,
+}
+
+public interface IProductManagementService
+{
+    Task<CreateProductResult> CreateAsync(
+        CreateProductCommand command,
+        CancellationToken cancellationToken = default
+    );
+
+    Task<UpdateProductResult> UpdateAsync(
+        Guid productId,
+        UpdateProductCommand command,
+        CancellationToken cancellationToken = default
+    );
+
+    Task<ArchiveProductStatus> ArchiveAsync(
+        Guid productId,
+        CancellationToken cancellationToken = default
+    );
+}

@@ -24,8 +24,16 @@ dotnet run --project src/Sofistike.Api
 
 API varsayılan olarak `http://localhost:5118` adresinde çalışır.
 
-Yerel veritabanı bağlantısı Windows kimlik doğrulamasıyla `SofistikeDb`
-veritabanını kullanır. İlk kurulumda migration'ları uygulayın:
+Yerel veritabanı, SQL Server ailesindeki `MSSQLLocalDB` örneğinde Windows kimlik
+doğrulamasıyla `SofistikeDb` adıyla çalışır. API geliştirme ortamında açılırken
+LocalDB'yi migrate eder ve örnek hesap/katalog verilerini hazırlar. LocalDB durmuşsa
+önce şu komutu çalıştırın:
+
+```powershell
+SqlLocalDB start MSSQLLocalDB
+```
+
+Migration'ları API'yi açmadan elle uygulamak için:
 
 ```bash
 dotnet ef database update \
@@ -37,12 +45,12 @@ dotnet ef database update \
 GET /api/v1/system/health
 ```
 
-### Yerel giriş hesabı
+### Yerel giriş hesapları
 
-Geliştirme veritabanına ilk migration ile eklenen giriş hesabı:
+Yalnızca geliştirme ortamında otomatik hazırlanan hesaplar:
 
-- E-posta: `umay@sofistike.com`
-- Şifre: `Umay123!`
+- Yönetici: `admin@sofistike.com` / `Admin123!`
+- Müşteri: `umay@sofistike.com` / `Umay123!`
 
 Kimlik doğrulama uçları:
 
@@ -61,6 +69,10 @@ POST /api/v1/account/cart/items
 PATCH /api/v1/account/cart/items/{productId}
 DELETE /api/v1/account/cart/items/{productId}
 POST /api/v1/account/orders
+GET  /api/v1/account/orders
+POST /api/v1/account/orders/{orderId}/cancel
+GET  /api/v1/account/reviews
+POST /api/v1/account/reviews
 ```
 
 Katalog uçları:
@@ -69,6 +81,9 @@ Katalog uçları:
 GET /api/v1/categories
 GET /api/v1/products
 GET /api/v1/products/{slug}
+POST /api/v1/admin/products
+PUT  /api/v1/admin/products/{productId}
+DELETE /api/v1/admin/products/{productId}
 ```
 
 Ürün listesi `category`, `search`, `isPopular`, `isXtra`, `inStock`,
@@ -117,12 +132,14 @@ Infrastructure katmanında tutulmalıdır.
 ## Başlangıç kapsamı
 
 Şu anda kimlik doğrulama, kullanıcı profili, kullanıcı favorileri, kalıcı sepet,
-sipariş oluşturma ve public ürün kataloğu hazırlanmıştır. Katalog; kategori,
-ürün, varyant, görsel, fiyat, kampanyalı fiyat, depo ve stok modellerini içerir.
+sipariş oluşturma/geçmiş/iptal, ürün değerlendirmeleri, public ürün kataloğu ve
+yönetici ürün ekleme akışı hazırlanmıştır. Katalog; kategori, ürün, varyant,
+görsel, fiyat, kampanyalı fiyat, depo ve stok modellerini içerir.
 Siparişler ödeme sağlayıcısı bağlanana kadar `AwaitingPayment` / `Pending`
 durumuyla oluşturulur. Ham kart numarası ve CVV API'ye alınmaz veya saklanmaz.
-Yönetim API'leri, B2B ve pazaryeri entegrasyonları sonraki geliştirme
-aşamalarına bırakılmıştır.
+`DELETE` ürünü fiziksel olarak silmez; geçmiş siparişleri koruyarak arşivler ve
+mağaza kataloğundan kaldırır. Kategori yönetimi, değerlendirme moderasyonu,
+gerçek ödeme, B2B ve pazaryeri entegrasyonları sonraki geliştirme aşamalarındadır.
 
 ## Git akışı
 

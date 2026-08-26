@@ -12,6 +12,28 @@ public sealed class OrdersController(
     ISessionTicketService sessionTicketService
 ) : ControllerBase
 {
+    [HttpGet]
+    [ProducesResponseType<IReadOnlyList<OrderSummary>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<IReadOnlyList<OrderSummary>>> GetOrders(
+        CancellationToken cancellationToken
+    )
+    {
+        var ticket = ReadSessionTicket();
+        if (ticket is null)
+        {
+            return Unauthorized(new ProblemDetails
+            {
+                Status = StatusCodes.Status401Unauthorized,
+                Title = "Oturum bulunamadı",
+                Detail = "Siparişlerinizi görmek için yeniden giriş yapın.",
+                Instance = HttpContext.Request.Path,
+            });
+        }
+
+        return Ok(await orderService.GetAsync(ticket.UserId, cancellationToken));
+    }
+
     [HttpPost]
     [ProducesResponseType<CreatedOrder>(StatusCodes.Status201Created)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
@@ -71,6 +93,44 @@ public sealed class OrdersController(
             _ => Conflict(CreateProblem(
                 "Ürün kullanılamıyor",
                 $"{result.UnavailableProductName ?? "Sepetinizdeki bir ürün"} için fiyat veya stok doğrulanamadı."
+            )),
+        };
+    }
+
+    [HttpPost("{orderId:guid}/cancel")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> CancelOrder(
+        Guid orderId,
+        CancellationToken cancellationToken
+    )
+    {
+        var ticket = ReadSessionTicket();
+        if (ticket is null)
+        {
+            return Unauthorized(CreateProblem(
+                "Oturum bulunamadı",
+                "Siparişi iptal etmek için yeniden giriş yapın."
+            ));
+        }
+
+        var status = await orderService.CancelAsync(
+            ticket.UserId,
+            orderId,
+            cancellationToken
+        );
+        return status switch
+        {
+            CancelOrderStatus.Cancelled => NoContent(),
+            CancelOrderStatus.NotFound => NotFound(CreateProblem(
+                "Sipariş bulunamadı",
+                "İptal edilmek istenen sipariş hesabınızda bulunamadı."
+            )),
+            _ => Conflict(CreateProblem(
+                "Sipariş iptal edilemiyor",
+                "Bu sipariş mevcut durumunda iptal edilemez."
             )),
         };
     }

@@ -10,6 +10,22 @@ public sealed class OrderService(SofistikeDbContext dbContext) : IOrderService
 {
     private const decimal ExpressShippingAmount = 59m;
 
+    public async Task<IReadOnlyList<OrderSummary>> GetAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default
+    )
+    {
+        var orders = await dbContext.Orders
+            .AsNoTracking()
+            .AsSplitQuery()
+            .Include(order => order.Items)
+            .Where(order => order.UserId == userId)
+            .OrderByDescending(order => order.CreatedAtUtc)
+            .ToListAsync(cancellationToken);
+
+        return orders.Select(MapSummary).ToList();
+    }
+
     public async Task<CreateOrderResult> CreateAsync(
         Guid userId,
         CreateOrderCommand command,
@@ -148,6 +164,36 @@ public sealed class OrderService(SofistikeDbContext dbContext) : IOrderService
         );
     }
 
+    public async Task<CancelOrderStatus> CancelAsync(
+        Guid userId,
+        Guid orderId,
+        CancellationToken cancellationToken = default
+    )
+    {
+        var order = await dbContext.Orders.SingleOrDefaultAsync(
+            item => item.Id == orderId && item.UserId == userId,
+            cancellationToken
+        );
+        if (order is null)
+        {
+            return CancelOrderStatus.NotFound;
+        }
+
+        if (order.Status is not (
+            OrderStatus.AwaitingPayment
+            or OrderStatus.Confirmed
+            or OrderStatus.Preparing
+        ))
+        {
+            return CancelOrderStatus.NotCancellable;
+        }
+
+        order.Status = OrderStatus.Cancelled;
+        order.UpdatedAtUtc = DateTimeOffset.UtcNow;
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return CancelOrderStatus.Cancelled;
+    }
+
     private IQueryable<ShoppingCart> CartQuery()
     {
         return dbContext.ShoppingCarts
@@ -175,5 +221,40 @@ public sealed class OrderService(SofistikeDbContext dbContext) : IOrderService
     private static string? NormalizeOptional(string? value)
     {
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
+
+    private static OrderSummary MapSummary(Order order)
+    {
+        return new OrderSummary(
+            order.Id,
+            order.OrderNumber,
+            order.Status.ToString(),
+            order.PaymentStatus.ToString(),
+            order.DeliveryMethod.ToString(),
+            order.ContactEmail,
+            $"{order.FirstName} {order.LastName}".Trim(),
+            order.City,
+            order.District,
+            order.AddressLine,
+            order.Subtotal,
+            order.ShippingAmount,
+            order.TotalAmount,
+            order.CurrencyCode,
+            order.CreatedAtUtc,
+            order.Items
+                .OrderBy(item => item.ProductName)
+                .Select(item => new OrderLineSummary(
+                    item.Id,
+                    item.ProductId,
+                    item.ProductName,
+                    item.VariantName,
+                    item.Sku,
+                    item.UnitPrice,
+                    item.Quantity,
+                    item.LineTotal,
+                    item.CurrencyCode
+                ))
+                .ToList()
+        );
     }
 }

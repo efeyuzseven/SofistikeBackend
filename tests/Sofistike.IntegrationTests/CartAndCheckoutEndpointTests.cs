@@ -188,6 +188,14 @@ public sealed class CartAndCheckoutEndpointTests
 
     private sealed class TestOrderService : IOrderService
     {
+        public Task<IReadOnlyList<OrderSummary>> GetAsync(
+            Guid userId,
+            CancellationToken cancellationToken = default
+        )
+        {
+            return Task.FromResult<IReadOnlyList<OrderSummary>>([]);
+        }
+
         public Guid LastUserId { get; private set; }
         public CreateOrderCommand? LastCommand { get; private set; }
 
@@ -213,6 +221,15 @@ public sealed class CartAndCheckoutEndpointTests
                     DateTimeOffset.UtcNow
                 )
             ));
+        }
+
+        public Task<CancelOrderStatus> CancelAsync(
+            Guid userId,
+            Guid orderId,
+            CancellationToken cancellationToken = default
+        )
+        {
+            return Task.FromResult(CancelOrderStatus.Cancelled);
         }
     }
 }

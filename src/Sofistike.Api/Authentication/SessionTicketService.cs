@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.AspNetCore.DataProtection;
@@ -18,6 +19,8 @@ public interface ISessionTicketService
     string Create(AuthenticatedUser user, TimeSpan lifetime);
 
     SessionTicket? Read(string token);
+
+    void Revoke(string token);
 }
 
 public sealed class SessionTicketService(
@@ -30,6 +33,7 @@ public sealed class SessionTicketService(
 
     private readonly IDataProtector _protector = dataProtectionProvider
         .CreateProtector("Sofistike.Authentication.SessionTicket.v1");
+    private readonly ConcurrentDictionary<string, DateTimeOffset> _revokedTokens = [];
 
     public string Create(AuthenticatedUser user, TimeSpan lifetime)
     {
@@ -46,6 +50,12 @@ public sealed class SessionTicketService(
 
     public SessionTicket? Read(string token)
     {
+        RemoveExpiredRevocations();
+        if (_revokedTokens.ContainsKey(token))
+        {
+            return null;
+        }
+
         try
         {
             var payload = _protector.Unprotect(token);
@@ -65,6 +75,27 @@ public sealed class SessionTicketService(
         catch (JsonException)
         {
             return null;
+        }
+    }
+
+    public void Revoke(string token)
+    {
+        var ticket = Read(token);
+        if (ticket is not null)
+        {
+            _revokedTokens[token] = ticket.ExpiresAt;
+        }
+    }
+
+    private void RemoveExpiredRevocations()
+    {
+        var now = DateTimeOffset.UtcNow;
+        foreach (var item in _revokedTokens)
+        {
+            if (item.Value <= now)
+            {
+                _revokedTokens.TryRemove(item.Key, out _);
+            }
         }
     }
 }
