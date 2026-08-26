@@ -138,8 +138,8 @@ Resources:
                 token.actions.githubusercontent.com:aud: sts.amazonaws.com
               StringLike:
                 token.actions.githubusercontent.com:sub:
-                  - repo:efeyuzseven/SofistikeBackend:ref:refs/heads/main-prod
-                  - repo:efeyuzseven/SofistikeFrontend:ref:refs/heads/main-prod
+                  - repo:efeyuzseven@163446299/SofistikeBackend@1316176358:ref:refs/heads/main-prod
+                  - repo:efeyuzseven@163446299/SofistikeFrontend@1316174334:ref:refs/heads/main-prod
       Policies:
         - PolicyName: SofistikeTestDeployment
           PolicyDocument:
