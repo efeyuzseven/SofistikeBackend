@@ -59,6 +59,7 @@ public sealed class AdminProductEndpointTests
         Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
         Assert.Equal(ProductId, management.LastUpdatedProductId);
         Assert.Equal(749.90m, management.LastUpdateCommand?.Price);
+        Assert.Equal(2, management.LastUpdateCommand?.CategoryIds.Count);
         Assert.Equal(ProductId, management.LastArchivedProductId);
     }
 
@@ -94,7 +95,11 @@ public sealed class AdminProductEndpointTests
         Slug = "duzenlenen-konfor-yastigi",
         ShortDescription = "Güncel kısa ürün açıklaması.",
         Description = "Güncel ve ayrıntılı ürün açıklaması.",
-        CategoryId = Guid.Parse("a8dbe6dd-d2d3-4e8a-abab-fe73a4ed51e0"),
+        CategoryIds = new[]
+        {
+            Guid.Parse("a8dbe6dd-d2d3-4e8a-abab-fe73a4ed51e0"),
+            Guid.Parse("b521da36-abbe-408b-b191-2cb24c2bb7b5"),
+        },
         Price = 749.90m,
         StockQuantity = 24,
         ImageUrl = "/images/hero-sleep.png",

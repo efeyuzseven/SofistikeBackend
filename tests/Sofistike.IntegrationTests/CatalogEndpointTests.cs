@@ -1,11 +1,14 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Sofistike.Application.Catalog;
+using Sofistike.Domain.Catalog;
 
 namespace Sofistike.IntegrationTests;
 
@@ -73,6 +76,7 @@ public sealed class CatalogEndpointTests
                     "uyku",
                     null,
                     null,
+                    CategoryMenuGroup.Category,
                     1
                 ),
             ],
@@ -80,8 +84,11 @@ public sealed class CatalogEndpointTests
         using var application = CreateApplication(catalog);
         using var client = application.CreateClient();
 
+        var jsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        jsonOptions.Converters.Add(new JsonStringEnumConverter());
         var categories = await client.GetFromJsonAsync<List<CategorySummary>>(
-            "/api/v1/categories"
+            "/api/v1/categories",
+            jsonOptions
         );
 
         Assert.Single(categories ?? []);

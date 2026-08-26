@@ -228,6 +228,7 @@ public sealed class FavoriteService(SofistikeDbContext dbContext)
                     item.Category.Slug,
                     item.Category.Description,
                     item.Category.ParentCategory?.Slug,
+                    item.Category.MenuGroup,
                     item.Category.DisplayOrder
                 ))
                 .ToList()

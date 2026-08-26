@@ -8,6 +8,13 @@ public enum ProductStatus
     Archived,
 }
 
+public enum CategoryMenuGroup
+{
+    Category,
+    Solution,
+    Room,
+}
+
 public sealed class Category
 {
     public Guid Id { get; set; }
@@ -16,6 +23,7 @@ public sealed class Category
     public string? Description { get; set; }
     public Guid? ParentCategoryId { get; set; }
     public Category? ParentCategory { get; set; }
+    public CategoryMenuGroup MenuGroup { get; set; } = CategoryMenuGroup.Category;
     public int DisplayOrder { get; set; }
     public bool IsActive { get; set; }
     public DateTimeOffset CreatedAtUtc { get; set; }

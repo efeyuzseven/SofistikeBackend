@@ -1,3 +1,5 @@
+using Sofistike.Domain.Catalog;
+
 namespace Sofistike.Application.Catalog;
 
 public enum ProductSort
@@ -28,6 +30,7 @@ public sealed record CategorySummary(
     string Slug,
     string? Description,
     string? ParentSlug,
+    CategoryMenuGroup MenuGroup,
     int DisplayOrder
 );
 
@@ -130,7 +133,7 @@ public sealed record CreateProductCommand(
     string Slug,
     string ShortDescription,
     string Description,
-    Guid CategoryId,
+    IReadOnlyList<Guid> CategoryIds,
     decimal Price,
     int StockQuantity,
     string? ImageUrl,
@@ -157,7 +160,7 @@ public sealed record UpdateProductCommand(
     string Slug,
     string ShortDescription,
     string Description,
-    Guid CategoryId,
+    IReadOnlyList<Guid> CategoryIds,
     decimal Price,
     int StockQuantity,
     string? ImageUrl,

@@ -10,15 +10,30 @@ public sealed class CategoryConfiguration : IEntityTypeConfiguration<Category>
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        builder.ToTable("Categories", "catalog");
+        builder.ToTable("Categories", "catalog", table =>
+            table.HasCheckConstraint(
+                "CK_Categories_MenuGroup",
+                "[MenuGroup] IN ('Solution', 'Room', 'Category')"
+            )
+        );
         builder.HasKey(category => category.Id);
         builder.Property(category => category.Name).HasMaxLength(150).IsRequired();
         builder.Property(category => category.Slug).HasMaxLength(180).IsRequired();
         builder.Property(category => category.Description).HasMaxLength(1000);
+        builder.Property(category => category.MenuGroup)
+            .HasConversion<string>()
+            .HasMaxLength(20)
+            .HasDefaultValue(CategoryMenuGroup.Category)
+            .IsRequired();
         builder.Property(category => category.CreatedAtUtc).HasPrecision(0);
         builder.Property(category => category.UpdatedAtUtc).HasPrecision(0);
         builder.HasIndex(category => category.Slug).IsUnique();
-        builder.HasIndex(category => new { category.IsActive, category.DisplayOrder });
+        builder.HasIndex(category => new
+        {
+            category.IsActive,
+            category.MenuGroup,
+            category.DisplayOrder,
+        });
         builder.HasOne(category => category.ParentCategory)
             .WithMany(category => category.Children)
             .HasForeignKey(category => category.ParentCategoryId)

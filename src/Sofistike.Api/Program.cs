@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
@@ -34,7 +35,11 @@ var databaseConnectionString = builder.Configuration.GetConnectionString(
     "Connection string 'SofistikeDatabase' is missing."
 );
 
-builder.Services.AddControllers();
+builder.Services.AddControllers().AddJsonOptions(options =>
+    options.JsonSerializerOptions.Converters.Add(
+        new JsonStringEnumConverter(allowIntegerValues: false)
+    )
+);
 builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi();
 builder.Services.AddDbContext<SofistikeDbContext>(options =>
@@ -51,6 +56,7 @@ builder.Services.AddScoped<IUserRegistrationService, UserRegistrationService>();
 builder.Services.AddScoped<IUserProfileService, UserProfileService>();
 builder.Services.AddScoped<IProductCatalogService, ProductCatalogService>();
 builder.Services.AddScoped<IProductManagementService, ProductManagementService>();
+builder.Services.AddScoped<ICategoryManagementService, CategoryManagementService>();
 builder.Services.AddScoped<IHomeBannerService, HomeBannerService>();
 builder.Services.AddScoped<IFavoriteService, FavoriteService>();
 builder.Services.AddScoped<IReviewService, ReviewService>();

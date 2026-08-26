@@ -39,11 +39,14 @@ public sealed class ProductManagementService(
             return new CreateProductResult(CreateProductStatus.DuplicateSlug, null);
         }
 
-        var category = await dbContext.Categories.SingleOrDefaultAsync(
-            item => item.Id == command.CategoryId && item.IsActive,
-            cancellationToken
-        );
-        if (category is null)
+        var categoryIds = command.CategoryIds
+            .Where(categoryId => categoryId != Guid.Empty)
+            .Distinct()
+            .ToList();
+        var categories = await dbContext.Categories
+            .Where(item => categoryIds.Contains(item.Id) && item.IsActive)
+            .ToDictionaryAsync(item => item.Id, cancellationToken);
+        if (categoryIds.Count == 0 || categories.Count != categoryIds.Count)
         {
             return new CreateProductResult(
                 CreateProductStatus.CategoryNotFound,
@@ -96,14 +99,18 @@ public sealed class ProductManagementService(
             UpdatedAtUtc = now,
         };
 
-        product.ProductCategories.Add(new ProductCategory
+        for (var index = 0; index < categoryIds.Count; index++)
         {
-            ProductId = product.Id,
-            Product = product,
-            CategoryId = category.Id,
-            Category = category,
-            IsPrimary = true,
-        });
+            var categoryId = categoryIds[index];
+            product.ProductCategories.Add(new ProductCategory
+            {
+                ProductId = product.Id,
+                Product = product,
+                CategoryId = categoryId,
+                Category = categories[categoryId],
+                IsPrimary = index == 0,
+            });
+        }
         product.Images.Add(new ProductImage
         {
             Id = Guid.NewGuid(),
@@ -219,11 +226,14 @@ public sealed class ProductManagementService(
             return new UpdateProductResult(UpdateProductStatus.DuplicateSlug, null);
         }
 
-        var category = await dbContext.Categories.SingleOrDefaultAsync(
-            item => item.Id == command.CategoryId && item.IsActive,
-            cancellationToken
-        );
-        if (category is null)
+        var categoryIds = command.CategoryIds
+            .Where(categoryId => categoryId != Guid.Empty)
+            .Distinct()
+            .ToList();
+        var categories = await dbContext.Categories
+            .Where(item => categoryIds.Contains(item.Id) && item.IsActive)
+            .ToDictionaryAsync(item => item.Id, cancellationToken);
+        if (categoryIds.Count == 0 || categories.Count != categoryIds.Count)
         {
             return new UpdateProductResult(
                 UpdateProductStatus.CategoryNotFound,
@@ -258,25 +268,32 @@ public sealed class ProductManagementService(
         variant.IsActive = true;
         variant.UpdatedAtUtc = now;
 
-        var selectedCategory = product.ProductCategories.SingleOrDefault(item =>
-            item.CategoryId == category.Id);
-        dbContext.ProductCategories.RemoveRange(
-            product.ProductCategories.Where(item => item.CategoryId != category.Id)
+        var selectedCategoryIds = categoryIds.ToHashSet();
+        var existingCategories = product.ProductCategories.ToDictionary(
+            item => item.CategoryId
         );
-        if (selectedCategory is null)
+        dbContext.ProductCategories.RemoveRange(
+            product.ProductCategories.Where(item =>
+                !selectedCategoryIds.Contains(item.CategoryId)
+            )
+        );
+        for (var index = 0; index < categoryIds.Count; index++)
         {
+            var categoryId = categoryIds[index];
+            if (existingCategories.TryGetValue(categoryId, out var selectedCategory))
+            {
+                selectedCategory.IsPrimary = index == 0;
+                continue;
+            }
+
             dbContext.ProductCategories.Add(new ProductCategory
             {
                 ProductId = product.Id,
                 Product = product,
-                CategoryId = category.Id,
-                Category = category,
-                IsPrimary = true,
+                CategoryId = categoryId,
+                Category = categories[categoryId],
+                IsPrimary = index == 0,
             });
-        }
-        else
-        {
-            selectedCategory.IsPrimary = true;
         }
 
         var image = product.Images

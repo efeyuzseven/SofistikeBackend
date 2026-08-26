@@ -36,7 +36,7 @@ public sealed class AdminProductsController(
                 request.Slug,
                 request.ShortDescription,
                 request.Description,
-                request.CategoryId,
+                request.ResolveCategoryIds(),
                 request.Price,
                 request.StockQuantity,
                 request.ImageUrl,
@@ -97,7 +97,7 @@ public sealed class AdminProductsController(
                 request.Slug,
                 request.ShortDescription,
                 request.Description,
-                request.CategoryId,
+                request.ResolveCategoryIds(),
                 request.Price,
                 request.StockQuantity,
                 request.ImageUrl,
@@ -260,7 +260,10 @@ public sealed class CreateProductRequest
     [StringLength(5000, MinimumLength = 3)]
     public required string Description { get; init; }
 
-    public Guid CategoryId { get; init; }
+    public Guid? CategoryId { get; init; }
+
+    [MinLength(1)]
+    public Guid[]? CategoryIds { get; init; }
 
     [Range(
         typeof(decimal),
@@ -279,4 +282,14 @@ public sealed class CreateProductRequest
     public bool IsPopular { get; init; }
 
     public bool IsXtra { get; init; }
+
+    public IReadOnlyList<Guid> ResolveCategoryIds()
+    {
+        if (CategoryIds is { Length: > 0 })
+        {
+            return CategoryIds;
+        }
+
+        return CategoryId.HasValue ? [CategoryId.Value] : [];
+    }
 }

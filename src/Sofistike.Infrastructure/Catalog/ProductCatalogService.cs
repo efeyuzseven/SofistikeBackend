@@ -25,6 +25,7 @@ public sealed class ProductCatalogService(SofistikeDbContext dbContext)
                 category.ParentCategory == null
                     ? null
                     : category.ParentCategory.Slug,
+                category.MenuGroup,
                 category.DisplayOrder
             ))
             .ToListAsync(cancellationToken);
@@ -376,6 +377,7 @@ public sealed class ProductCatalogService(SofistikeDbContext dbContext)
                 item.Category.Slug,
                 item.Category.Description,
                 item.Category.ParentCategory?.Slug,
+                item.Category.MenuGroup,
                 item.Category.DisplayOrder
             ))
             .ToList();
