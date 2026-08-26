@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Sofistike.Api.Authentication;
 using Sofistike.Application.Authentication;
@@ -16,6 +17,10 @@ using Sofistike.Infrastructure.Sales;
 using Sofistike.Infrastructure.Users;
 
 var builder = WebApplication.CreateBuilder(args);
+var isBootstrapCommand = args.Contains(
+    "--bootstrap",
+    StringComparer.OrdinalIgnoreCase
+);
 
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
@@ -65,8 +70,41 @@ builder.Services.AddCors(options =>
             .AllowAnyMethod()
     );
 });
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders =
+        ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
+});
 
 var app = builder.Build();
+
+if (isBootstrapCommand)
+{
+    await using var scope = app.Services.CreateAsyncScope();
+    var dbContext = scope.ServiceProvider.GetRequiredService<SofistikeDbContext>();
+    var adminPassword = app.Configuration["DeploymentBootstrap:AdminPassword"];
+
+    if (string.IsNullOrWhiteSpace(adminPassword))
+    {
+        throw new InvalidOperationException(
+            "Deployment bootstrap admin password is missing."
+        );
+    }
+
+    var adminEmail = app.Configuration["DeploymentBootstrap:AdminEmail"]
+        ?? "admin@sofistike.com";
+
+    await dbContext.Database.MigrateAsync();
+    await DeploymentIdentitySeeder.SeedAdminAsync(
+        dbContext,
+        adminEmail,
+        adminPassword
+    );
+    await DevelopmentCatalogSeeder.SeedAsync(dbContext);
+    return;
+}
 
 if (
     app.Environment.IsDevelopment()
@@ -87,6 +125,7 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
+app.UseForwardedHeaders();
 app.UseHttpsRedirection();
 app.UseCors(frontendCorsPolicy);
 app.MapControllers();

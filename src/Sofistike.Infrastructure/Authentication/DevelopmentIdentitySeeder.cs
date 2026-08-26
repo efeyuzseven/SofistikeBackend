@@ -13,7 +13,7 @@ public static class DevelopmentIdentitySeeder
     {
         ArgumentNullException.ThrowIfNull(dbContext);
 
-        await EnsureUserAsync(
+        await IdentitySeeder.EnsureUserAsync(
             dbContext,
             "admin@sofistike.com",
             "Admin123!",
@@ -21,7 +21,7 @@ public static class DevelopmentIdentitySeeder
             "Admin",
             cancellationToken
         );
-        await EnsureUserAsync(
+        await IdentitySeeder.EnsureUserAsync(
             dbContext,
             "umay@sofistike.com",
             "Umay123!",
@@ -30,8 +30,35 @@ public static class DevelopmentIdentitySeeder
             cancellationToken
         );
     }
+}
 
-    private static async Task EnsureUserAsync(
+public static class DeploymentIdentitySeeder
+{
+    public static Task SeedAdminAsync(
+        SofistikeDbContext dbContext,
+        string email,
+        string password,
+        CancellationToken cancellationToken = default
+    )
+    {
+        ArgumentNullException.ThrowIfNull(dbContext);
+        ArgumentException.ThrowIfNullOrWhiteSpace(email);
+        ArgumentException.ThrowIfNullOrWhiteSpace(password);
+
+        return IdentitySeeder.EnsureUserAsync(
+            dbContext,
+            email.Trim(),
+            password,
+            "Sofistike",
+            "Admin",
+            cancellationToken
+        );
+    }
+}
+
+internal static class IdentitySeeder
+{
+    public static async Task EnsureUserAsync(
         SofistikeDbContext dbContext,
         string email,
         string password,

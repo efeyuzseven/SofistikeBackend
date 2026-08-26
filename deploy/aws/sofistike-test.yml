@@ -1,0 +1,501 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Sofistike test environment on the shared D1 Tech ECS and ALB infrastructure.
+
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Default: vpc-0269c3ea5f1d4bc38
+  PrivateSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Default: subnet-0aa00961a9dddee01,subnet-0f3dd8cb82840c21b,subnet-0c7a9bfe8a7e2b744
+  AlbSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Default: sg-0d546e0655e28e3d5
+  RdsSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Default: sg-0a4d403ba76b6db6e
+  EcsClusterName:
+    Type: String
+    Default: D1TechBackendEcsCluster
+  HttpsListenerArn:
+    Type: String
+    Default: arn:aws:elasticloadbalancing:eu-central-1:890571110014:listener/app/d1tech-alb/8422203dabbee15e/37ca7f23a8b2a1df
+  HostedZoneId:
+    Type: String
+    Default: Z08656481HTWDIKKIFRTL
+  AlbDnsName:
+    Type: String
+    Default: d1tech-alb-1446238077.eu-central-1.elb.amazonaws.com
+  AlbCanonicalHostedZoneId:
+    Type: String
+    Default: Z215JYRZR1TBD5
+  GitHubOidcProviderArn:
+    Type: String
+    Default: arn:aws:iam::890571110014:oidc-provider/token.actions.githubusercontent.com
+
+Resources:
+  BackendRepository:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      RepositoryName: sofistike-backend
+      ImageTagMutability: IMMUTABLE
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      LifecyclePolicy:
+        LifecyclePolicyText: >-
+          {"rules":[{"rulePriority":1,"description":"Keep the latest 20 images","selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":20},"action":{"type":"expire"}}]}
+      Tags:
+        - Key: Project
+          Value: Sofistike
+        - Key: Environment
+          Value: Test
+
+  FrontendRepository:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      RepositoryName: sofistike-frontend
+      ImageTagMutability: IMMUTABLE
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      LifecyclePolicy:
+        LifecyclePolicyText: >-
+          {"rules":[{"rulePriority":1,"description":"Keep the latest 20 images","selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":20},"action":{"type":"expire"}}]}
+      Tags:
+        - Key: Project
+          Value: Sofistike
+        - Key: Environment
+          Value: Test
+
+  BackendLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      LogGroupName: /ecs/sofistike-backend-test
+      RetentionInDays: 14
+
+  FrontendLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      LogGroupName: /ecs/sofistike-frontend-test
+      RetentionInDays: 14
+
+  EcsExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: sofistike-test-ecs-execution
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: ReadSofistikeTestParameters
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameters
+                Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/sofistike/test/*
+
+  EcsTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: sofistike-test-ecs-task
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+
+  GitHubDeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: sofistike-test-github-deploy
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Ref GitHubOidcProviderArn
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+              StringLike:
+                token.actions.githubusercontent.com:sub:
+                  - repo:efeyuzseven/SofistikeBackend:ref:refs/heads/main-prod
+                  - repo:efeyuzseven/SofistikeFrontend:ref:refs/heads/main-prod
+      Policies:
+        - PolicyName: SofistikeTestDeployment
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: AuthenticateToEcr
+                Effect: Allow
+                Action: ecr:GetAuthorizationToken
+                Resource: "*"
+              - Sid: PushSofistikeImages
+                Effect: Allow
+                Action:
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:CompleteLayerUpload
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:InitiateLayerUpload
+                  - ecr:PutImage
+                  - ecr:UploadLayerPart
+                Resource:
+                  - !GetAtt BackendRepository.Arn
+                  - !GetAtt FrontendRepository.Arn
+              - Sid: ReadAndRegisterTaskDefinitions
+                Effect: Allow
+                Action:
+                  - ecs:DescribeTaskDefinition
+                  - ecs:RegisterTaskDefinition
+                Resource: "*"
+              - Sid: RunAndInspectBootstrapTask
+                Effect: Allow
+                Action:
+                  - ecs:RunTask
+                Resource: !Sub arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/sofistike-backend-test:*
+                Condition:
+                  ArnEquals:
+                    ecs:cluster: !Sub arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:cluster/${EcsClusterName}
+              - Sid: InspectTasks
+                Effect: Allow
+                Action:
+                  - ecs:DescribeTasks
+                Resource: "*"
+              - Sid: DeploySofistikeServices
+                Effect: Allow
+                Action:
+                  - ecs:DescribeServices
+                  - ecs:UpdateService
+                Resource:
+                  - !Sub arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:service/${EcsClusterName}/sofistike-backend-test
+                  - !Sub arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:service/${EcsClusterName}/sofistike-frontend-test
+              - Sid: PassSofistikeTaskRoles
+                Effect: Allow
+                Action: iam:PassRole
+                Resource:
+                  - !GetAtt EcsExecutionRole.Arn
+                  - !GetAtt EcsTaskRole.Arn
+                Condition:
+                  StringEquals:
+                    iam:PassedToService: ecs-tasks.amazonaws.com
+              - Sid: ReadStackOutputs
+                Effect: Allow
+                Action: cloudformation:DescribeStacks
+                Resource: "*"
+
+  ApplicationSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Sofistike test ECS tasks - port 8080 from the shared ALB only
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          SourceSecurityGroupId: !Ref AlbSecurityGroupId
+      SecurityGroupEgress:
+        - IpProtocol: "-1"
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: sofistike-test-ecs
+        - Key: Project
+          Value: Sofistike
+        - Key: Environment
+          Value: Test
+
+  RdsIngressFromApplication:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: Sofistike test backend access
+      GroupId: !Ref RdsSecurityGroupId
+      IpProtocol: tcp
+      FromPort: 1433
+      ToPort: 1433
+      SourceSecurityGroupId: !GetAtt ApplicationSecurityGroup.GroupId
+
+  BackendTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: sofistike-backend-test
+      Cpu: "512"
+      Memory: "1024"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !GetAtt EcsExecutionRole.Arn
+      TaskRoleArn: !GetAtt EcsTaskRole.Arn
+      RuntimePlatform:
+        CpuArchitecture: X86_64
+        OperatingSystemFamily: LINUX
+      ContainerDefinitions:
+        - Name: sofistike-backend
+          Image: !Sub ${BackendRepository.RepositoryUri}:bootstrap
+          Essential: true
+          PortMappings:
+            - ContainerPort: 8080
+              HostPort: 8080
+              Protocol: tcp
+          Environment:
+            - Name: ASPNETCORE_ENVIRONMENT
+              Value: Production
+            - Name: ASPNETCORE_URLS
+              Value: http://+:8080
+            - Name: Cors__AllowedOrigins__0
+              Value: https://sofistike-test.d1-tech.com
+            - Name: DeploymentBootstrap__AdminEmail
+              Value: admin@sofistike.com
+          Secrets:
+            - Name: ConnectionStrings__SofistikeDatabase
+              ValueFrom: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/sofistike/test/CONNECTION_STRING
+            - Name: DeploymentBootstrap__AdminPassword
+              ValueFrom: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/sofistike/test/ADMIN_PASSWORD
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref BackendLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+
+  FrontendTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: sofistike-frontend-test
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !GetAtt EcsExecutionRole.Arn
+      TaskRoleArn: !GetAtt EcsTaskRole.Arn
+      RuntimePlatform:
+        CpuArchitecture: X86_64
+        OperatingSystemFamily: LINUX
+      ContainerDefinitions:
+        - Name: sofistike-frontend
+          Image: !Sub ${FrontendRepository.RepositoryUri}:bootstrap
+          Essential: true
+          PortMappings:
+            - ContainerPort: 8080
+              HostPort: 8080
+              Protocol: tcp
+          Environment:
+            - Name: NODE_ENV
+              Value: production
+            - Name: HOSTNAME
+              Value: 0.0.0.0
+            - Name: PORT
+              Value: "8080"
+            - Name: API_BASE_URL
+              Value: https://api-sofistike-test.d1-tech.com
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref FrontendLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+
+  BackendTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: sofistike-backend-test-tg
+      VpcId: !Ref VpcId
+      TargetType: ip
+      Protocol: HTTP
+      Port: 8080
+      HealthCheckEnabled: true
+      HealthCheckProtocol: HTTP
+      HealthCheckPort: traffic-port
+      HealthCheckPath: /api/v1/system/health
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Matcher:
+        HttpCode: 200-399
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: "30"
+
+  FrontendTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: sofistike-frontend-test-tg
+      VpcId: !Ref VpcId
+      TargetType: ip
+      Protocol: HTTP
+      Port: 8080
+      HealthCheckEnabled: true
+      HealthCheckProtocol: HTTP
+      HealthCheckPort: traffic-port
+      HealthCheckPath: /api/health
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Matcher:
+        HttpCode: 200-399
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: "30"
+
+  BackendListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref HttpsListenerArn
+      Priority: 170
+      Conditions:
+        - Field: host-header
+          HostHeaderConfig:
+            Values:
+              - api-sofistike-test.d1-tech.com
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref BackendTargetGroup
+
+  FrontendListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref HttpsListenerArn
+      Priority: 171
+      Conditions:
+        - Field: host-header
+          HostHeaderConfig:
+            Values:
+              - sofistike-test.d1-tech.com
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref FrontendTargetGroup
+
+  BackendService:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - BackendListenerRule
+      - RdsIngressFromApplication
+    Properties:
+      ServiceName: sofistike-backend-test
+      Cluster: !Ref EcsClusterName
+      DesiredCount: 0
+      LaunchType: FARGATE
+      PlatformVersion: LATEST
+      TaskDefinition: !Ref BackendTaskDefinition
+      HealthCheckGracePeriodSeconds: 90
+      EnableECSManagedTags: true
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 100
+        MaximumPercent: 200
+        DeploymentCircuitBreaker:
+          Enable: true
+          Rollback: true
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets: !Ref PrivateSubnetIds
+          SecurityGroups:
+            - !GetAtt ApplicationSecurityGroup.GroupId
+      LoadBalancers:
+        - ContainerName: sofistike-backend
+          ContainerPort: 8080
+          TargetGroupArn: !Ref BackendTargetGroup
+      Tags:
+        - Key: Project
+          Value: Sofistike
+        - Key: Environment
+          Value: Test
+
+  FrontendService:
+    Type: AWS::ECS::Service
+    DependsOn: FrontendListenerRule
+    Properties:
+      ServiceName: sofistike-frontend-test
+      Cluster: !Ref EcsClusterName
+      DesiredCount: 0
+      LaunchType: FARGATE
+      PlatformVersion: LATEST
+      TaskDefinition: !Ref FrontendTaskDefinition
+      HealthCheckGracePeriodSeconds: 90
+      EnableECSManagedTags: true
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 100
+        MaximumPercent: 200
+        DeploymentCircuitBreaker:
+          Enable: true
+          Rollback: true
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets: !Ref PrivateSubnetIds
+          SecurityGroups:
+            - !GetAtt ApplicationSecurityGroup.GroupId
+      LoadBalancers:
+        - ContainerName: sofistike-frontend
+          ContainerPort: 8080
+          TargetGroupArn: !Ref FrontendTargetGroup
+      Tags:
+        - Key: Project
+          Value: Sofistike
+        - Key: Environment
+          Value: Test
+
+  BackendDnsRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: api-sofistike-test.d1-tech.com
+      Type: A
+      AliasTarget:
+        DNSName: !Ref AlbDnsName
+        HostedZoneId: !Ref AlbCanonicalHostedZoneId
+        EvaluateTargetHealth: true
+
+  FrontendDnsRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: sofistike-test.d1-tech.com
+      Type: A
+      AliasTarget:
+        DNSName: !Ref AlbDnsName
+        HostedZoneId: !Ref AlbCanonicalHostedZoneId
+        EvaluateTargetHealth: true
+
+Outputs:
+  GitHubDeployRoleArn:
+    Value: !GetAtt GitHubDeployRole.Arn
+  BackendRepositoryUri:
+    Value: !GetAtt BackendRepository.RepositoryUri
+  FrontendRepositoryUri:
+    Value: !GetAtt FrontendRepository.RepositoryUri
+  ClusterName:
+    Value: !Ref EcsClusterName
+  ApplicationSecurityGroupId:
+    Value: !GetAtt ApplicationSecurityGroup.GroupId
+  PrivateSubnetIds:
+    Value: !Join [",", !Ref PrivateSubnetIds]
+  BackendServiceName:
+    Value: !GetAtt BackendService.Name
+  FrontendServiceName:
+    Value: !GetAtt FrontendService.Name
+  BackendUrl:
+    Value: https://api-sofistike-test.d1-tech.com
+  FrontendUrl:
+    Value: https://sofistike-test.d1-tech.com
