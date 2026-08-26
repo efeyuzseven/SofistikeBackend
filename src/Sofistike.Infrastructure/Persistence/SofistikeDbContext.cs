@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Sofistike.Domain.Catalog;
+using Sofistike.Domain.Content;
 using Sofistike.Domain.Favorites;
 using Sofistike.Domain.Reviews;
 using Sofistike.Domain.Sales;
@@ -28,6 +29,7 @@ public sealed class SofistikeDbContext(DbContextOptions<SofistikeDbContext> opti
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<OrderItem> OrderItems => Set<OrderItem>();
     public DbSet<ProductReview> ProductReviews => Set<ProductReview>();
+    public DbSet<HomeBanner> HomeBanners => Set<HomeBanner>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
